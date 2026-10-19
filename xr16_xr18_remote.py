@@ -11,13 +11,16 @@ What this program does
   stateless UDP, exactly like the official "X AIR Edit" application.
 * Five horizontal tabs: "MIXER" shows the channel faders (CH01 ... CH18)
   plus the Main LR fader - each strip with its own MUTE and SOLO
-  buttons.  "AUX" shows the 6 Bus outputs (AUX1 ... AUX6), "FX" the 4
-  FX returns (FX1 ... FX4) and "DCA" the 4 DCA masters (DCA1 ... DCA4),
+  buttons.  "AUX" shows the 6 Bus outputs (AUX1 ... AUX6) plus, on the
+  18-channel models (X18/XR18) only, the stereo "USB" strip: the fader
+  for audio played back from the USB connector (the mixer's single
+  /rtn/aux return), with MUTE, SOLO and its own level meter.  "FX" the
+  4 FX returns (FX1 ... FX4) and "DCA" the 4 DCA masters (DCA1 ... DCA4),
   also with MUTE and SOLO buttons below every fader.  "RTA" shows the
   real-time level meter bridge of every mixer source (see below).  The
   mixer model reported by "/xinfo" is verified on every connection: an
-  XR16 shows its 16 channel faders (CH17/CH18 are hidden), an XR18
-  shows all 18.
+  XR16 shows its 16 channel faders (CH17/CH18 and the USB strip are
+  hidden), an XR18 shows all 18 plus the USB strip.
 * Remembers the mixer IP address in a small JSON configuration file that
   sits next to this script ("xr_remote_config.json"), so the address is
   restored the next time the application is started.
@@ -90,9 +93,12 @@ protocol, firmware 1.11 and newer):
     subscription stops after ~10 s unless it is renewed with "/renew"
     and the same address string (done by the heartbeat together with
     "/xremote").  Index table of the 40 values: 0-15 = CH01-16 pre,
-    16-17 = AUX in L/R (CH17/18), 18-25 = FX1-4 pre L/R, 26-31 =
-    Bus1-6 pre, 32-35 = FX send 1-4, 36-37 = Main L/R post,
-    38-39 = Monitor L/R.  No DCA levels in this blob.
+    16-17 = stereo AUX/USB return pre L/R (/rtn/aux - this app shows
+    those two indices on CH17/CH18 and, on the 18-channel models, on
+    the USB strip), 18-25 = FX1-4 pre L/R, 26-31 = Bus1-6 pre, 32-35 =
+    FX send 1-4, 36-37 = Main L/R post, 38-39 = Monitor L/R.  No DCA
+    levels in this blob (official protocol PDF: "16 mono + 5x2 fx/aux
+    + 6 bus + 4 fx send (all pre) + 2 st (post) + 2 monitor").
   * Channel detail parameters (channel editor window): "/ch/01/gate/thr",
     "/ch/01/eq/2/g", "/ch/01/dyn/ratio", "/ch/01/mix/03/level",
     "/ch/01/config/insrc", "/ch/01/mix/pan", ...  Continuous values are
@@ -128,6 +134,15 @@ OSC addresses used by this application:
   FX return volume /rtn/1/mix/fader  ... /rtn/4/mix/fader float 0.0 - 1.0
   FX return mute   /rtn/1/mix/on     ... /rtn/4/mix/on   int  0 = MUTE ON,
                                                                1 = MUTE OFF
+  USB return volume /rtn/aux/mix/fader                   float 0.0 - 1.0
+  USB return mute   /rtn/aux/mix/on                      int  0 = MUTE ON,
+                                                               1 = MUTE OFF
+                   (the X AIR's ONE stereo "aux 17-18" strip - the
+                   internal channel 16 of the official Parameters.txt:
+                   the analogue line/aux input pair, fed from the USB
+                   connector on the 18-channel models via "/rtn/aux/
+                   config/rtnsrc" = U0102 ... U1718.  Shown as the
+                   "USB" strip of the AUX tab on those models.)
   DCA master volume /dca/1/fader       ... /dca/4/fader      float 0.0 - 1.0
   DCA master mute   /dca/1/on          ... /dca/4/on         int  0 = MUTE ON,
                                                                   1 = MUTE OFF
@@ -137,18 +152,22 @@ OSC addresses used by this application:
                                                                   DCA
                                                                   addresses)
   Channel solo     /-stat/solosw/01 ... /-stat/solosw/16  int  1 = solo ON
-  Aux solo switch  /-stat/solosw/17   (CH17 / CH18 share it on the X AIR)
+  Aux solo switch  /-stat/solosw/17   (the ONE stereo AUX/USB strip:
+                                       CH17/CH18 and the USB strip of
+                                       this app share this switch)
   FX return solo   /-stat/solosw/18 ... /-stat/solosw/21  (FX 1 ... FX 4)
   AUX bus solo     /-stat/solosw/40 ... /-stat/solosw/45  (Bus 1 ... Bus 6)
   Main solo switch /-stat/solosw/50   (Main LR)
   DCA solo switch  /-stat/solosw/51 ... /-stat/solosw/54  (DCA 1 ... DCA 4)
   Scribble name    /ch/01/config/name ... /ch/18/config/name  string (<=32)
                    /lr/config/name, /bus/1/config/name ...,
-                   /rtn/1/config/name ..., /dca/1/config/name ...
+                   /rtn/aux/config/name, /rtn/1/config/name ...,
+                   /dca/1/config/name ...
                    (edited by double-click)
   Scribble colour  /ch/01/config/color ... /ch/18/config/color  int 0-15
                    /lr/config/color, /bus/1/config/color ...,
-                   /rtn/1/config/color ..., /dca/1/config/color ...
+                   /rtn/aux/config/color, /rtn/1/config/color ...,
+                   /dca/1/config/color ...
                    (right-click the name field)
   Preamp gain      /headamp/01/gain ... /headamp/18/gain   float 0.0 - 1.0
                    (linearly -12 ... +60 dB; NOTE: unlike the strip
@@ -158,7 +177,9 @@ OSC addresses used by this application:
   "/dca/1/...").  DCA fader/mute also skip the "mix" level that
   channels/buses/returns use: "/dca/1/fader" and "/dca/1/on".
   The solosw index follows the documented scheme "0-based source id + 1":
-  0-15 = CH1-16, 16 = AUX input (CH17/18), 17-20 = FX return,
+  0-15 = CH1-16, 16 = AUX/USB return (the single stereo "/rtn/aux"
+  strip - "aux 17-18" in the official snapshot scope, behind this app's
+  CH17/CH18 and the USB strip), 17-20 = FX return,
   21-38 = USB, 39-44 = Bus 1-6 (-> solosw 40-45), 45-48 = FX send,
   49 = Main LR (-> solosw/50), 50-53 = DCA 1-4 (-> solosw 51-54).
   This is the same numbering the X32 uses there L/R = solosw/71.
@@ -221,6 +242,10 @@ NUM_BUSES = 6                      # Bus 1..6 = the AUX/monitor outputs
 NUM_FX = 4                         # FX return 1..4 (the 4 effect processors)
 NUM_DCAS = 4                       # DCA 1..4 (digit al control associations)
 MAIN_STRIP = "lr"                  # internal key of the Main LR fader
+USB_STRIP = "usb"                  # internal key of the stereo USB/AUX
+                                  # return (/rtn/aux/... = "aux 17-18";
+                                  # its own strip on the AUX tab of the
+                                  # 18-channel models only)
 
 # --- Configuration file ----------------------------------------------------
 # The last mixer IP address is stored in a small JSON file next to this
@@ -411,6 +436,8 @@ def strip_label(strip) -> str:
     """Human readable name of a strip, used in messages and labels."""
     if strip == MAIN_STRIP:
         return "Main LR"
+    if strip == USB_STRIP:
+        return "USB"
     bus = _bus_number(strip)
     if bus is not None:
         return f"AUX{bus}"
@@ -427,6 +454,9 @@ def fader_address(strip) -> str:
     """OSC address of the strip fader (float 0.0 ... 1.0)."""
     if strip == MAIN_STRIP:
         return "/lr/mix/fader"
+    if strip == USB_STRIP:
+        # The one stereo AUX/USB return of the X AIR ("aux 17-18").
+        return "/rtn/aux/mix/fader"
     bus = _bus_number(strip)
     if bus is not None:
         return f"/bus/{bus}/mix/fader"       # buses use a SINGLE digit
@@ -445,6 +475,8 @@ def mute_address(strip) -> str:
     """OSC address of the mute switch (0 = muted, 1 = unmuted)."""
     if strip == MAIN_STRIP:
         return "/lr/mix/on"
+    if strip == USB_STRIP:
+        return "/rtn/aux/mix/on"
     bus = _bus_number(strip)
     if bus is not None:
         return f"/bus/{bus}/mix/on"
@@ -462,12 +494,15 @@ def _solosw_index(strip) -> int:
     """Number of the solo switch that belongs to a strip.
 
     X AIR solo switch table (index = 0-based source id + 1):
-        01..16 -> CH01..CH16, 17 -> AUX input (CH17/CH18 share it),
+        01..16 -> CH01..CH16, 17 -> the single stereo AUX/USB return
+        ("/rtn/aux", "aux 17-18"; CH17/CH18 and the USB strip share it),
         18..21 -> FX returns 1..4, 22..39 -> USB, 40..45 -> Bus 1..6,
         46..49 -> FX sends, 50 -> Main LR, 51..54 -> DCA 1..4.
     """
     if strip == MAIN_STRIP:
         return 50
+    if strip == USB_STRIP:
+        return 17
     bus = _bus_number(strip)
     if bus is not None:
         return 39 + bus              # BUS1 -> solosw/40 ... BUS6 -> solosw/45
@@ -489,6 +524,8 @@ def name_address(strip) -> str:
     """OSC address of the scribble-strip name of a strip (string)."""
     if strip == MAIN_STRIP:
         return "/lr/config/name"
+    if strip == USB_STRIP:
+        return "/rtn/aux/config/name"
     bus = _bus_number(strip)
     if bus is not None:
         return f"/bus/{bus}/config/name"
@@ -505,6 +542,8 @@ def color_address(strip) -> str:
     """OSC address of the scribble-strip colour of a strip (int 0-15)."""
     if strip == MAIN_STRIP:
         return "/lr/config/color"
+    if strip == USB_STRIP:
+        return "/rtn/aux/config/color"
     bus = _bus_number(strip)
     if bus is not None:
         return f"/bus/{bus}/config/color"
@@ -521,6 +560,8 @@ def default_name_of(strip) -> str:
     """Local default label shown until the mixer reports a real name."""
     if strip == MAIN_STRIP:
         return "MAIN LR"
+    if strip == USB_STRIP:
+        return "USB"
     bus = _bus_number(strip)
     if bus is not None:
         return f"AUX{bus}"
@@ -925,9 +966,10 @@ def channel_count_from_model(model: str):
 
 
 # Reverse lookup: solo switch number -> strips that it controls.
-# CH17/CH18 share one switch, therefore a switch can map to two strips.
+# CH17/CH18 and the USB strip share switch 17 (the X AIR's one stereo
+# AUX/USB return), therefore a switch can map to three strips.
 _SOLOSW_TO_STRIPS: dict[str, tuple] = {}
-for _strip in ALL_STRIPS + BUS_STRIPS + FX_STRIPS + DCA_STRIPS:
+for _strip in ALL_STRIPS + BUS_STRIPS + FX_STRIPS + DCA_STRIPS + (USB_STRIP,):
     _key = f"{_solosw_index(_strip):02d}"
     _SOLOSW_TO_STRIPS.setdefault(_key, []).append(_strip)
 _SOLOSW_TO_STRIPS = {k: tuple(v) for k, v in _SOLOSW_TO_STRIPS.items()}
@@ -936,7 +978,10 @@ _SOLOSW_TO_STRIPS = {k: tuple(v) for k, v in _SOLOSW_TO_STRIPS.items()}
 # ---------------------------------------------------------------------------
 # Level meter index table (meter id 1 - "ALL CHANNELS" blob, 40 values)
 # ---------------------------------------------------------------------------
-#   0..15  CH01..CH16 pre-fader      16..17  AUX in L/R (= CH17/CH18)
+#   0..15  CH01..CH16 pre-fader      16..17  AUX/USB return pre L/R
+#                                          (/rtn/aux = "aux 17-18";
+#                                          shown on CH17/CH18 and on
+#                                          the USB strip of the AUX tab)
 #   18..25 FX1..FX4 pre-fader L/R    26..31  Bus 1..6 pre-fader
 #   32..35 FX send 1..4              36..37  Main L/R post-fader
 #   38..39 Monitor L/R (not shown in this application)
@@ -944,8 +989,8 @@ _SOLOSW_TO_STRIPS = {k: tuple(v) for k, v in _SOLOSW_TO_STRIPS.items()}
 def _build_meter_indices() -> dict:
     """Map every strip of this application to its blob index/indices.
 
-    Stereo sources (FX returns, Main LR) list both channels; the GUI
-    shows the louder of the two.
+    Stereo sources (FX returns, Main LR, the USB/AUX return) list both
+    channels; the GUI shows the louder of the two.
     """
     table = {}
     for number in range(1, NUM_CHANNELS + 1):
@@ -955,6 +1000,7 @@ def _build_meter_indices() -> dict:
     for bus in range(1, NUM_BUSES + 1):
         table[f"b{bus}"] = (25 + bus,)       # Bus1 -> 26 ... Bus6 -> 31
     table[MAIN_STRIP] = (36, 37)             # Main L/R
+    table[USB_STRIP] = (16, 17)              # AUX/USB return L/R
     return table
 
 
@@ -1054,9 +1100,29 @@ def parse_parameter(address: str):
         if parts[3] == "config" and parts[4] == "color":
             return [("color", strip)]
 
+    # --- USB/AUX return: /rtn/aux/mix/fader, /rtn/aux/mix/on, config/...
+    # The X AIR has ONE stereo strip after the 16 channels: the
+    # "aux 17-18" channel of the official Parameters.txt (internal
+    # ch[16]), addressed as "/rtn/aux/...".  Its source is the analogue
+    # line/aux input pair - on the 18-channel models it plays back audio
+    # from the USB connector ("/rtn/aux/config/rtnsrc" = U0102 ... U1718),
+    # which is where this application shows it as the "USB" strip of the
+    # AUX tab.  The digit check of the FX branch below never matches
+    # "aux", so the two cannot collide.
+    if len(parts) == 5 and parts[1] == "rtn" and parts[2] == "aux":
+        if parts[3] == "mix" and parts[4] == "fader":
+            return [("fader", USB_STRIP)]
+        if parts[3] == "mix" and parts[4] == "on":
+            return [("mute", USB_STRIP)]
+        if parts[3] == "config" and parts[4] == "name":
+            return [("name", USB_STRIP)]
+        if parts[3] == "config" and parts[4] == "color":
+            return [("color", USB_STRIP)]
+        return []                         # e.g. /rtn/aux/mix/pan - not a strip
+
     # --- FX returns: /rtn/<n>/mix/fader, /rtn/<n>/mix/on, /rtn/<n>/config/...
-    # Same single-digit convention as the buses.  "/rtn/aux/..." (the
-    # USB/aux return) is not a strip of this application and is ignored.
+    # Same single-digit convention as the buses ("/rtn/1/...", not
+    # "/rtn/01/..."); "/rtn/aux/..." is handled just above.
     if len(parts) == 5 and parts[1] == "rtn" and parts[2].isdigit():
         number = int(parts[2])
         if not 1 <= number <= NUM_FX:
@@ -2755,12 +2821,17 @@ class MixerGUI:
 
         # Configuration file (last mixer IP) and the fader count.  The
         # model reported by /xinfo raises/lowers channel_count when the
-        # mixer is connected (XR16 = 16 faders, XR18 = 18 faders).
+        # mixer is connected (XR16 = 16 faders, XR18 = 18 faders).  The
+        # USB/AUX return strip of the AUX tab follows the same rule: it
+        # belongs to the 18-channel models, so it starts out visible
+        # (the default count) and disappears with CH17/CH18 on an XR16.
         self._config = load_config()
         self.channel_count = NUM_CHANNELS      # strips CH1..CHn this model has
         self._active_strips = ALL_STRIPS       # MIXER tab strips of this model
         self._active_set = (set(ALL_STRIPS) | set(BUS_STRIPS)
-                            | set(FX_STRIPS) | set(DCA_STRIPS))
+                            | set(FX_STRIPS) | set(DCA_STRIPS)
+                            | {USB_STRIP})
+        self._usb_separator = None             # hairline before the USB strip
 
         # console state loading (fader positions read from the mixer)
         self._fader_loaded: set = set()        # strips that answered so far
@@ -2965,8 +3036,13 @@ class MixerGUI:
         """Show exactly the channel faders this mixer model has.
 
         Called when /xinfo reports a model change: an XR16 hides CH17
-        and CH18, an XR18 brings them back (packed right before the
-        separator so the order CH... | MAIN LR is preserved).
+        and CH18 (packed right before the separator so the order
+        CH... | MAIN LR is preserved), an XR18 brings them back.  The
+        stereo USB/AUX return strip of the AUX tab (and its cell of the
+        RTA meter bridge) follows the same rule: it exists on the
+        18-channel models only, because there it is fed from the USB
+        connector - on an XR16 the same return comes from the analogue
+        line inputs and this application shows no separate strip for it.
         """
         if count == self.channel_count:
             return
@@ -2974,21 +3050,35 @@ class MixerGUI:
             for number in range(count + 1, self.channel_count + 1):
                 self.strips[number].pack_forget()
                 self.rta_cells[number]["frame"].pack_forget()
+            if count < NUM_CHANNELS:           # USB strip only exists on 18ch
+                self.strips[USB_STRIP].pack_forget()
+                self._usb_separator.pack_forget()
+                self.rta_cells[USB_STRIP]["frame"].pack_forget()
         else:
             for number in range(self.channel_count + 1, count + 1):
                 self.strips[number].pack(
                     side="left", fill="y", padx=4, pady=3,
                     before=self._separator,
                 )
-                # keep the RTA order: CH01..CHn | MAIN | AUX | FX
+                # keep the RTA order: CH01..CHn | MAIN | AUX | FX | USB
                 self.rta_cells[number]["frame"].pack(
                     side="left", fill="y", padx=3, pady=2,
                     before=self._rta_sep1,
                 )
+            if count == NUM_CHANNELS:          # bring the USB strip back
+                # both windows are children of the AUX tab frame; packing
+                # them in code order appends them right of AUX6 again
+                self._usb_separator.pack(side="left", fill="y", padx=8, pady=4)
+                self.strips[USB_STRIP].pack(side="left", fill="y", padx=6, pady=6)
+                self.rta_cells[USB_STRIP]["frame"].pack(
+                    side="left", fill="y", padx=3, pady=2,
+                    before=self._rta_tail,
+                )
         self.channel_count = count
         self._active_strips = tuple(range(1, count + 1)) + (MAIN_STRIP,)
         self._active_set = (set(self._active_strips) | set(BUS_STRIPS)
-                            | set(FX_STRIPS) | set(DCA_STRIPS))
+                            | set(FX_STRIPS) | set(DCA_STRIPS)
+                            | ({USB_STRIP} if count == NUM_CHANNELS else set()))
         # the bank became narrower/wider - refresh scroll width and region
         self._bank_needed_width = self.bank_inner.winfo_reqwidth()
         self.bank_canvas.itemconfigure(
@@ -2998,10 +3088,16 @@ class MixerGUI:
         self.bank_canvas.configure(scrollregion=self.bank_canvas.bbox("all"))
 
     def _build_aux_bank(self) -> None:
-        """AUX tab: the 6 Bus outputs, each with MUTE and SOLO buttons.
+        """AUX tab: the 6 Bus outputs + the USB return strip.
 
         Bus 1-6 of the X AIR mixers are typically used as monitor/aux
-        sends ("/bus/1/..." ... "/bus/6/...", single digit!).  Six strips
+        sends ("/bus/1/..." ... "/bus/6/...", single digit!).  Behind a
+        hairline separator follows the stereo USB/AUX return
+        ("/rtn/aux/..."): on the 18-channel models (X18/XR18) it plays
+        back audio from the USB connector, so it is shown as its own
+        "USB" strip with fader, MUTE, SOLO, scribble and level meter.
+        (An XR16 feeds the same return from its analogue line inputs -
+        _apply_channel_count hides the strip there.)  Seven strips
         always fit next to each other, so no scrolling canvas is needed
         here - a plain horizontal frame is enough.
         """
@@ -3020,6 +3116,20 @@ class MixerGUI:
             )
             column.pack(side="left", fill="y", padx=6, pady=6)
             self.strips[strip] = column
+        self._usb_separator = tk.Frame(outer, bg=COL_SEP, width=2)
+        self._usb_separator.pack(side="left", fill="y", padx=8, pady=4)
+        usb = StripColumn(
+            outer, USB_STRIP,
+            label_text=strip_label(USB_STRIP),      # "USB"
+            name_default=default_name_of(USB_STRIP),
+            on_fader=self._user_fader,
+            on_mute=self._user_mute,
+            on_solo=self._user_solo,
+            on_name=self._user_name,
+            on_color=self._user_color,
+        )
+        usb.pack(side="left", fill="y", padx=6, pady=6)
+        self.strips[USB_STRIP] = usb
 
     def _build_fx_bank(self) -> None:
         """FX tab: the 4 FX returns, each with MUTE and SOLO buttons.
@@ -3112,8 +3222,13 @@ class MixerGUI:
         self._rta_sep3.pack(side="left", fill="y", padx=8, pady=4)
         for strip in FX_STRIPS:
             self._add_rta_cell(row, strip, strip_label(strip))
+        # --- stereo USB/AUX return (the "aux 17-18" strip) --------------
+        self._rta_sep4 = tk.Frame(row, bg=COL_SEP, width=2)
+        self._rta_sep4.pack(side="left", fill="y", padx=8, pady=4)
+        self._add_rta_cell(row, USB_STRIP, strip_label(USB_STRIP))
         # leftover space on the right keeps the bridge left-aligned
-        tk.Frame(row, bg=COL_BG).pack(side="left", fill="both", expand=True)
+        self._rta_tail = tk.Frame(row, bg=COL_BG)
+        self._rta_tail.pack(side="left", fill="both", expand=True)
 
     def _build_rta_scale(self, parent) -> None:
         """dB ruler on the left edge of the meter bridge."""
@@ -3339,9 +3454,13 @@ class MixerGUI:
 
         The MIXER tab strips depend on the mixer model (XR16 = 16
         channels); the 6 AUX buses, the 4 FX returns and the 4 DCA
-        masters are the same on every X AIR model.
+        masters are the same on every X AIR model.  The USB/AUX return
+        strip is loaded only when the model has it (18-channel models).
         """
-        return self._active_strips + BUS_STRIPS + FX_STRIPS + DCA_STRIPS
+        strips = self._active_strips + BUS_STRIPS + FX_STRIPS + DCA_STRIPS
+        if USB_STRIP in self._active_set:
+            strips = strips + (USB_STRIP,)
+        return strips
 
     def _request_console_state(self) -> None:
         """Ask the mixer for all faders/mutes/solos and track the answers.
