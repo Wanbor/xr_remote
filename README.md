@@ -13,3 +13,6 @@ python xr16_18_remote.py
 - right-click on channel number on bottom change color
 
 Thats all ! ;-)
+
+<img width="1342" height="672" alt="image" src="https://github.com/user-attachments/assets/50220876-86f9-4fd9-8c68-750cedc490b2" />
+
